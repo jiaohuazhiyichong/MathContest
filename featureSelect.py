@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler  # 最大最小归一化
 from sklearn.preprocessing import StandardScaler  # 标准化
 from sklearn.model_selection import train_test_split  # 划分数据集
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, ShuffleSplit
+from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
 from dataProcess import *
 from scipy.stats import pearsonr
@@ -43,7 +44,7 @@ def Univariatefeatureselection(id, time, X, Y, Y_s,propertys_idx2token,propertys
     # print(f_regression_f)
 
 
-    # 计算mutual_info_regression， 最大相关系数，输出特征变量排名
+    # 计算mutual_info_regression， 最大信息系数，输出特征变量排名
     m = MINE()
     Mic_scores = []
     for j in range(col_nums):
@@ -52,8 +53,36 @@ def Univariatefeatureselection(id, time, X, Y, Y_s,propertys_idx2token,propertys
     Mic_scores = sorted(Mic_scores, key = (lambda x:x[1]),reverse=True)
     print(Mic_scores)
 
-    #
     # 距离系数的计算
+    disTance_scores = []
+    for j in range(col_nums):
+        disTance_scores.append([propertys_idx2token[j], distcorr(X[:,j],Y)])
+    disTance_scores = sorted(disTance_scores,key = (lambda x:x[1]),reverse=True)
+    print(disTance_scores)
+
+    pd.DataFrame(pearsonr_values,columns=['操作位点','皮尔森相关系数']).to_excel('相关系数统计/皮尔森相关系数.xlsx',encoding='utf8',index=False)
+    pd.DataFrame(f_regression_f, columns=['操作位点', 'f_regression']).to_excel('相关系数统计/f_regression.xlsx', encoding='utf8', index=False)
+    pd.DataFrame(Mic_scores, columns=['操作位点', '最大信息系数']).to_excel('相关系数统计/最大信息系数.xlsx', encoding='utf8', index=False)
+    pd.DataFrame(disTance_scores, columns=['操作位点', '距离系数']).to_excel('相关系数统计/距离系数.xlsx', encoding='utf8', index=False)
+
+# 采用随机森林进行模型的特征排序
+def RFfeatureselection(id, time, X, Y, Y_s,propertys_idx2token,propertys_token2idx):
+    rf = RandomForestRegressor(n_estimators=20, max_depth=4)
+    rf_scores = []
+    row_nums = np.shape(X)[0]
+    col_nums = np.shape(X)[1]
+    for i in range(col_nums):
+        print(i)
+        score = cross_val_score(rf, X[:,i:i+1], Y,scoring="r2",  # 注意X[:, i]和X[:, i:i+1]的区别
+                            cv=ShuffleSplit(len(X), 3, .3))
+        print(np.mean(score))
+        rf_scores.append([propertys_idx2token[i],np.mean(score)])
+    rf_scores =sorted(rf_scores,key = (lambda x:x[1]),reverse=True)
+    print(rf_scores)
+    pd.DataFrame(rf_scores, columns=['操作位点', 'RF排名']).to_excel('相关系数统计/随机森林RF排名.xlsx', encoding='utf8', index=False)
+
+# 利用xgboost
+
 if __name__ == '__main__':
     str_path = "../处理数据.xlsx"
     propertys_list,list_values = load_New_data(str_path)
@@ -72,4 +101,6 @@ if __name__ == '__main__':
     X_np = np.array(X)
     Y_np = np.array(Y)
     Y_s_np = np.array(Y_s)
-    Univariatefeatureselection(id,time,X_np,Y_np,Y_s_np,propertys_idx2token,propertys_token2idx)
+    # Univariatefeatureselection(id,time,X_np,Y_np,Y_s_np,propertys_idx2token,propertys_token2idx)
+    # print(propertys_idx2token)
+    RFfeatureselection(id,time,X_np,Y_np,Y_s_np,propertys_idx2token,propertys_token2idx)
